@@ -1,27 +1,43 @@
 import { buildApp, setReady, SERVICE_NAME } from './app.js';
+import { startConsumer, stopConsumer } from './events/consumer.js';
+import { pingDb } from './db/client.js';
 
 const PORT = Number(process.env['PORT'] ?? 3004);
 const app = buildApp();
 
 async function main(): Promise<void> {
   await app.listen({ port: PORT, host: '0.0.0.0' });
-  // Phase 3 replaces this with real dependency checks (Postgres, Kafka, Redis).
+
+  if (!(await pingDb())) {
+    app.log.error('database unreachable at startup; staying un-ready');
+  }
+
+  try {
+    await startConsumer();
+    app.log.info('kafka consumer running');
+  } catch (err) {
+    // Reads still work without the broker; the timeline just stops advancing.
+    app.log.error({ err }, 'kafka unavailable; timeline will not advance');
+  }
+
   setReady(true);
   app.log.info({ service: SERVICE_NAME, port: PORT }, 'service started');
 }
 
-/**
- * Graceful termination. Kubernetes sends SIGTERM, waits terminationGracePeriodSeconds,
- * then SIGKILLs. Without this handler in-flight requests are severed mid-response and
- * every rolling update produces 502s that look like an application bug.
- */
+let shuttingDown = false;
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     app.log.info({ signal }, 'shutting down');
-    // Fail readiness first so the endpoint controller pulls this pod out of
-    // rotation BEFORE we stop accepting connections.
     setReady(false);
-    void app.close().then(() => process.exit(0));
+    void (async () => {
+      // Disconnect the consumer cleanly so Kafka rebalances immediately rather
+      // than waiting for the session timeout to expire.
+      await stopConsumer();
+      await app.close();
+      process.exit(0);
+    })();
   });
 }
 
