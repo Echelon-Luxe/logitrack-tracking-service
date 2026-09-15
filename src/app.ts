@@ -24,17 +24,13 @@ export function buildApp(): FastifyInstance {
     done();
   });
 
-  // Liveness: never checks dependencies. Failing it KILLS the container, so a
-  // database or broker blip would restart every pod at once.
+  // Never checks dependencies: failing liveness kills the container.
   app.get('/healthz', () => ({ status: 'ok', service: SERVICE_NAME }));
 
   app.get('/readyz', async (_req, reply) => {
     if (!ready) return reply.code(503).send({ status: 'not-ready', service: SERVICE_NAME });
 
-    // Readiness checks the database because the read API cannot serve a
-    // timeline without it. Kafka is deliberately NOT checked: this service
-    // serves reads perfectly well while the broker is down - it just falls
-    // behind. Refusing traffic would turn degraded into unavailable.
+    // Kafka is deliberately not checked - reads work while the broker is down.
     const db = await pingDb();
     if (!db) return reply.code(503).send({ status: 'not-ready', service: SERVICE_NAME, db: false });
     return { status: 'ready', service: SERVICE_NAME, db: true };

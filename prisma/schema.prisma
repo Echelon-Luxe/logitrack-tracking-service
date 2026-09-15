@@ -8,17 +8,10 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-/// Append-only timeline of everything that happened to a shipment.
-///
-/// This table is a PROJECTION, not a source of truth. It is rebuilt entirely by
-/// replaying the event log, which is why tracking-service can lose its whole
-/// database and recover by resetting its consumer offset to zero.
 model TrackingEvent {
   id         String   @id @default(uuid())
 
-  /// Idempotency key. Kafka delivers at-least-once, so the same event WILL
-  /// arrive twice during a consumer rebalance. The unique constraint makes a
-  /// duplicate a no-op instead of a duplicated timeline entry.
+  // Dedup key: Kafka is at-least-once.
   eventId    String   @unique
 
   shipmentId String
@@ -29,19 +22,12 @@ model TrackingEvent {
   origin     String
   destination String
   occurredAt DateTime
-  /// When we processed it. Differs from occurredAt when the consumer lags or
-  /// events are replayed - useful for spotting lag in Grafana.
   recordedAt DateTime @default(now())
 
-  /// Timeline reads are always "everything for this shipment, oldest first".
   @@index([shipmentId, occurredAt])
 }
 
-/// Events the consumer could not process, kept for inspection.
-///
-/// A poison message that is retried forever blocks its partition and stalls
-/// every shipment that hashes to it. Parking it here keeps the consumer moving
-/// while preserving the payload for diagnosis.
+// Poison messages, parked so they cannot block a partition.
 model DeadLetter {
   id        String   @id @default(uuid())
   eventId   String?

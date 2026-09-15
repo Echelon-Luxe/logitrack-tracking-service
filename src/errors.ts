@@ -13,7 +13,7 @@ export function registerErrorHandler(app: FastifyInstance): void {
       });
     }
     const e = err as Error & { statusCode?: number };
-    // Only 4xx messages are safe to return - they describe the caller's mistake.
+    // Only 4xx messages are returned; 5xx text can leak internals.
     if (typeof e.statusCode === 'number' && e.statusCode >= 400 && e.statusCode < 500) {
       return reply.code(e.statusCode).send({ error: e.name, message: e.message });
     }

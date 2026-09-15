@@ -21,15 +21,11 @@ let running = false;
 export const isConsumerRunning = (): boolean => running;
 
 export async function startConsumer(): Promise<void> {
-  // groupId is what makes this service's offsets independent. notification-service
-  // reads the same topic under its own group, so a slow consumer here never
-  // blocks notifications - and vice versa.
   consumer = kafka.consumer({ groupId: CONSUMER_GROUP });
   dlqProducer = kafka.producer();
 
   await Promise.all([consumer.connect(), dlqProducer.connect()]);
-  // fromBeginning matters for a projection: a fresh deployment must replay the
-  // whole log to rebuild the timeline, not start from "now" with a blank table.
+  // fromBeginning: the timeline is a projection and must be rebuildable by replay.
   await consumer.subscribe({ topic: SHIPMENT_EVENTS_TOPIC, fromBeginning: true });
 
   await consumer.run({
@@ -40,29 +36,19 @@ export async function startConsumer(): Promise<void> {
       try {
         env = parseEvent(raw);
       } catch (err) {
-        // Unparseable will never become parseable on retry. Retrying forever
-        // would block this partition and stall every shipment on it.
+        // Unparseable never becomes parseable; retrying would block the partition.
         await deadLetter(topic, partition, message.offset, raw, err);
         return;
       }
 
       if (!isShipmentEvent(env.eventType)) return;
 
-      try {
-        const { duplicate } = await recordEvent(prisma, env);
-        if (duplicate) eventsDuplicate.inc({ event_type: env.eventType });
-        else eventsProcessed.inc({ event_type: env.eventType });
+      const { duplicate } = await recordEvent(prisma, env);
+      if (duplicate) eventsDuplicate.inc({ event_type: env.eventType });
+      else eventsProcessed.inc({ event_type: env.eventType });
 
-        // How far behind the producer we are. This is the SLI to alert on -
-        // a healthy pod with a growing lag is invisible to every other check.
-        const lagMs = Date.now() - new Date(env.occurredAt).getTime();
-        consumerLag.set({ topic }, Math.max(0, lagMs) / 1000);
-      } catch (err) {
-        // A DATABASE failure IS transient, so rethrow and let kafkajs retry
-        // without committing the offset. Dead-lettering here would silently
-        // drop real events during a brief Postgres blip.
-        throw err;
-      }
+      const lagMs = Date.now() - new Date(env.occurredAt).getTime();
+      consumerLag.set({ topic }, Math.max(0, lagMs) / 1000);
     },
   });
   running = true;

@@ -16,7 +16,6 @@ async function main(): Promise<void> {
     await startConsumer();
     app.log.info('kafka consumer running');
   } catch (err) {
-    // Reads still work without the broker; the timeline just stops advancing.
     app.log.error({ err }, 'kafka unavailable; timeline will not advance');
   }
 
@@ -32,8 +31,7 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     app.log.info({ signal }, 'shutting down');
     setReady(false);
     void (async () => {
-      // Disconnect the consumer cleanly so Kafka rebalances immediately rather
-      // than waiting for the session timeout to expire.
+      // Disconnect first so Kafka rebalances now, not after the session timeout.
       await stopConsumer();
       await app.close();
       process.exit(0);
