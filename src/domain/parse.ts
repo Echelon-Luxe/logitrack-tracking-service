@@ -1,16 +1,8 @@
 import { z } from 'zod';
 import type { EventEnvelope, ShipmentEventPayload } from '../events/envelope.js';
 
-/**
- * Deliberately tolerant.
- *
- * Unknown fields are IGNORED rather than rejected (zod's default, made explicit
- * here). If the producer adds a field in a later version, this consumer keeps
- * working instead of dead-lettering every message until it is redeployed. That
- * property is what lets the six services deploy independently.
- *
- * Only fields this service actually uses are required.
- */
+// Unknown fields are ignored so a producer can add fields without breaking
+// consumers that have not been redeployed.
 const PayloadSchema = z.object({
   shipmentId: z.string().min(1),
   reference: z.string().min(1),
@@ -37,7 +29,7 @@ export class UnparseableEventError extends Error {
   }
 }
 
-/** Throws UnparseableEventError; the caller dead-letters rather than retrying. */
+// Throws UnparseableEventError; callers dead-letter rather than retry.
 export function parseEvent(raw: string | Buffer | null): EventEnvelope<ShipmentEventPayload> {
   if (raw === null) throw new UnparseableEventError('null message body');
 
@@ -45,7 +37,6 @@ export function parseEvent(raw: string | Buffer | null): EventEnvelope<ShipmentE
   try {
     json = JSON.parse(raw.toString('utf8'));
   } catch {
-    // Malformed JSON will never become valid on retry - dead-letter it.
     throw new UnparseableEventError('not valid JSON');
   }
 
@@ -56,7 +47,6 @@ export function parseEvent(raw: string | Buffer | null): EventEnvelope<ShipmentE
     );
   }
 
-  // A version we do not understand is not an error we can fix by retrying.
   if (result.data.eventVersion > 1) {
     throw new UnparseableEventError(`unsupported eventVersion ${result.data.eventVersion}`);
   }
@@ -64,5 +54,4 @@ export function parseEvent(raw: string | Buffer | null): EventEnvelope<ShipmentE
   return result.data as EventEnvelope<ShipmentEventPayload>;
 }
 
-/** Only shipment.* events belong on this timeline. */
 export const isShipmentEvent = (eventType: string): boolean => eventType.startsWith('shipment.');

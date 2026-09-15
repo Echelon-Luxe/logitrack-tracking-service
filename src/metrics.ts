@@ -25,13 +25,7 @@ export const eventsDeadLettered = new Counter({
   registers: [registry],
 });
 
-/**
- * Seconds between an event being produced and this service handling it.
- *
- * The single most important metric for a consumer. Pods can be Ready, CPU flat
- * and error rate zero while the service falls further and further behind -
- * every other signal looks healthy.
- */
+// Lag is the consumer SLI: pods stay Ready and error-free while falling behind.
 export const consumerLag = new Gauge({
   name: 'tracking_consumer_lag_seconds',
   help: 'Seconds between event occurrence and processing',
