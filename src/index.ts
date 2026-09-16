@@ -1,4 +1,5 @@
 import { buildApp, setReady, SERVICE_NAME } from './app.js';
+import { closeLogger } from './logging.js';
 import { startConsumer, stopConsumer } from './events/consumer.js';
 import { pingDb } from './db/client.js';
 
@@ -36,6 +37,8 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
       // than waiting for the session timeout to expire.
       await stopConsumer();
       await app.close();
+      // Last: flush what Seq is still batching before the process goes.
+      await closeLogger();
       process.exit(0);
     })();
   });
@@ -43,5 +46,5 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
 
 main().catch((err: unknown) => {
   app.log.error({ err }, 'failed to start');
-  process.exit(1);
+  void closeLogger().then(() => process.exit(1));
 });
