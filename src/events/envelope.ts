@@ -1,10 +1,3 @@
-/**
- * Wire contract, duplicated from the producer rather than shared via a package.
- *
- * A shared library would couple the deploy cycles of all six services. This
- * consumer must keep working when the producer adds a field it does not know
- * about, which is what eventVersion and tolerant parsing are for.
- */
 export interface EventEnvelope<T = unknown> {
   eventId: string;
   eventType: string;

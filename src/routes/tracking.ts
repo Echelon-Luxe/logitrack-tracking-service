@@ -9,8 +9,7 @@ export async function trackingRoutes(app: FastifyInstance): Promise<void> {
   app.get('/tracking/:shipmentId', async (req, reply) => {
     const { shipmentId } = ShipmentParam.parse(req.params);
     const events = await getTimeline(prisma, shipmentId);
-    // An empty timeline is not an error: the shipment may exist but its event
-    // may not have been consumed yet. 404 would make normal lag look like a bug.
+    // Empty is not 404: consumer lag would otherwise look like a missing shipment.
     if (events.length === 0) {
       return reply.code(200).send({ shipmentId, events: [], note: 'no events recorded yet' });
     }
@@ -24,7 +23,6 @@ export async function trackingRoutes(app: FastifyInstance): Promise<void> {
     return latest;
   });
 
-  // Operational visibility: what failed to parse, and why.
   app.get('/tracking/dead-letters', async () => {
     return prisma.deadLetter.findMany({ orderBy: { createdAt: 'desc' }, take: 50 });
   });

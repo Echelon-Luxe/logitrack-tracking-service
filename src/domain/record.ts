@@ -3,18 +3,11 @@ import type { EventEnvelope, ShipmentEventPayload } from '../events/envelope.js'
 
 export interface RecordResult {
   recorded: boolean;
-  /** True when this eventId had already been processed. */
   duplicate: boolean;
 }
 
-/**
- * Append one event to the timeline, exactly once.
- *
- * Idempotency is enforced by the unique constraint on eventId and a
- * createMany({ skipDuplicates }) - NOT by "check then insert", which has a race:
- * two consumer instances can both see "not present" and both insert. Letting
- * the database arbitrate is the only version that is correct under concurrency.
- */
+// Dedup via the unique constraint on eventId, not read-then-insert: the latter
+// races, letting two consumers both see "absent" and both insert.
 export async function recordEvent(
   db: PrismaClient,
   env: EventEnvelope<ShipmentEventPayload>,
