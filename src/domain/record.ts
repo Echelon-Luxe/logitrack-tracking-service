@@ -21,6 +21,8 @@ export async function recordEvent(
       eventType: env.eventType,
       status: payload.status,
       driverId: payload.driverId,
+      customerId: payload.customerId || null,
+      driverUserId: payload.driverUserId ?? null,
       origin: payload.origin,
       destination: payload.destination,
       occurredAt: new Date(env.occurredAt),

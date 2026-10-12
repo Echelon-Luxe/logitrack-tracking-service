@@ -14,8 +14,13 @@ export interface ShipmentEventPayload {
   status: string;
   customerId: string;
   driverId: string | null;
+  driverUserId?: string | null;
   origin: string;
   destination: string;
+  originLat?: number | null;
+  originLng?: number | null;
+  destLat?: number | null;
+  destLng?: number | null;
 }
 
 export const SHIPMENT_EVENTS_TOPIC = 'logitrack.shipment.events';

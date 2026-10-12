@@ -2,6 +2,7 @@ import { Kafka, type Consumer, logLevel, type Producer } from 'kafkajs';
 import { prisma } from '../db/client.js';
 import { parseEvent, isShipmentEvent, UnparseableEventError } from '../domain/parse.js';
 import { recordEvent } from '../domain/record.js';
+import { publish } from '../domain/live.js';
 import { SHIPMENT_EVENTS_TOPIC, SHIPMENT_EVENTS_DLQ, CONSUMER_GROUP } from './envelope.js';
 import { eventsProcessed, eventsDuplicate, eventsDeadLettered, consumerLag } from '../metrics.js';
 
@@ -45,7 +46,13 @@ export async function startConsumer(): Promise<void> {
 
       const { duplicate } = await recordEvent(prisma, env);
       if (duplicate) eventsDuplicate.inc({ event_type: env.eventType });
-      else eventsProcessed.inc({ event_type: env.eventType });
+      else {
+        eventsProcessed.inc({ event_type: env.eventType });
+        publish(env.payload.shipmentId, {
+          type: 'status',
+          data: { status: env.payload.status, eventType: env.eventType, occurredAt: env.occurredAt },
+        });
+      }
 
       const lagMs = Date.now() - new Date(env.occurredAt).getTime();
       consumerLag.set({ topic }, Math.max(0, lagMs) / 1000);

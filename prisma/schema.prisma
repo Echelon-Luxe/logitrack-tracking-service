@@ -24,12 +24,35 @@ model TrackingEvent {
   eventType  String
   status     String
   driverId   String?
+  // Copied from the event so reads can be authorised here, without asking
+  // shipment-service who owns the shipment on every request.
+  customerId   String?
+  driverUserId String?
   origin     String
   destination String
   occurredAt DateTime
   recordedAt DateTime @default(now())
 
   @@index([shipmentId, occurredAt])
+}
+
+// A driver's position while on a job. Written by the driver's device (or the
+// route simulator), read by the live map. Kept per shipment rather than per
+// driver: the customer's question is "where is my parcel", and the trail
+// should stop at delivery.
+model LocationPing {
+  id           String   @id @default(uuid())
+  shipmentId   String
+  driverUserId String
+  lat          Float
+  lng          Float
+  heading      Float?
+  speedKph     Float?
+  accuracyM    Float?
+  recordedAt   DateTime @default(now())
+
+  @@index([shipmentId, recordedAt])
+  @@index([recordedAt])
 }
 
 // Poison messages, parked so they cannot block a partition.

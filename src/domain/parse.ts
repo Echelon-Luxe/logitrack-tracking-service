@@ -7,9 +7,15 @@ const PayloadSchema = z.object({
   shipmentId: z.string().min(1),
   reference: z.string().min(1),
   status: z.string().min(1),
+  customerId: z.string().default(''),
   driverId: z.string().nullable().default(null),
+  driverUserId: z.string().nullable().default(null),
   origin: z.string().default(''),
   destination: z.string().default(''),
+  originLat: z.number().nullable().default(null),
+  originLng: z.number().nullable().default(null),
+  destLat: z.number().nullable().default(null),
+  destLng: z.number().nullable().default(null),
 });
 
 const EnvelopeSchema = z.object({
